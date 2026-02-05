@@ -1,0 +1,11 @@
+torch
+torchaudio
+transformers
+rich
+numpy
+scipy
+librosa
+accelerate
+soundfile
+pyaudio
+pyannote.audio
