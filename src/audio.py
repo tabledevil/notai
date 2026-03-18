@@ -1,15 +1,18 @@
-import time
 import queue
 import threading
-import numpy as np
+import time
 from abc import ABC, abstractmethod
+
+import numpy as np
 
 # Try importing pyaudio, handle failure gracefully for headless/mock environments
 try:
     import pyaudio
+
     PYAUDIO_AVAILABLE = True
 except ImportError:
     PYAUDIO_AVAILABLE = False
+
 
 class AudioStream(ABC):
     """Abstract base class for audio streams."""
@@ -34,6 +37,7 @@ class AudioStream(ABC):
             return self.queue.get(timeout=1.0)
         except queue.Empty:
             return None
+
 
 class MicrophoneStream(AudioStream):
     """Stream audio from system microphone using PyAudio."""
@@ -73,7 +77,7 @@ class MicrophoneStream(AudioStream):
             rate=self.rate,
             input=True,
             input_device_index=self.device_index,
-            frames_per_buffer=self.chunk_size
+            frames_per_buffer=self.chunk_size,
         )
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._read_loop)
@@ -87,6 +91,7 @@ class MicrophoneStream(AudioStream):
             self.stream.stop_stream()
             self.stream.close()
         self.p.terminate()
+
 
 class MockAudioStream(AudioStream):
     """Generates synthetic audio (speech-like bursts) for testing."""
@@ -126,6 +131,46 @@ class MockAudioStream(AudioStream):
         self._stop_event.set()
         if self._thread:
             self._thread.join()
+
+
+class FileAudioStream(AudioStream):
+    """Stream audio from a file (WAV, FLAC, MP3, etc.)."""
+
+    def __init__(self, file_path, rate=16000, chunk_size=1024):
+        super().__init__(rate, chunk_size)
+        self.file_path = file_path
+        self._stop_event = threading.Event()
+        self._thread = None
+
+    def _read_file(self):
+        try:
+            import librosa
+
+            audio_data, sr = librosa.load(self.file_path, sr=self.rate, mono=True)
+        except Exception as e:
+            print(f"Error loading audio file: {e}")
+            return
+
+        # Feed chunks into the queue at roughly real-time pace
+        for i in range(0, len(audio_data), self.chunk_size):
+            if self._stop_event.is_set():
+                break
+            chunk = audio_data[i : i + self.chunk_size]
+            if len(chunk) < self.chunk_size:
+                chunk = np.pad(chunk, (0, self.chunk_size - len(chunk)))
+            self.queue.put(chunk.astype(np.float32))
+            time.sleep(self.chunk_size / self.rate)
+
+    def start(self):
+        self._stop_event.clear()
+        self._thread = threading.Thread(target=self._read_file)
+        self._thread.start()
+
+    def stop(self):
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join()
+
 
 class VAD:
     """Simple energy-based Voice Activity Detection."""
