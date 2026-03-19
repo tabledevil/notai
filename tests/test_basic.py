@@ -118,6 +118,33 @@ class TestConfig(unittest.TestCase):
             self.assertIn(key, DEFAULT_CONFIG)
 
 
+class TestDeviceDetection(unittest.TestCase):
+    def test_get_best_device_returns_string(self):
+        from config import get_best_device
+
+        device = get_best_device()
+        self.assertIn(device, ("cpu", "cuda", "mps"))
+
+    def test_get_torch_dtype_cpu(self):
+        from config import get_torch_dtype
+
+        dtype = get_torch_dtype("cpu")
+        # Without torch installed, returns None; with torch, returns float32
+        if dtype is not None:
+            import torch
+
+            self.assertEqual(dtype, torch.float32)
+
+    def test_get_torch_dtype_mps(self):
+        from config import get_torch_dtype
+
+        dtype = get_torch_dtype("mps")
+        if dtype is not None:
+            import torch
+
+            self.assertEqual(dtype, torch.float32)
+
+
 class TestExport(unittest.TestCase):
     def setUp(self):
         self.tmpdir = "/tmp/notai_test_export"

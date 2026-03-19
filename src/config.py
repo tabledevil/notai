@@ -33,6 +33,35 @@ def find_config_file():
     return None
 
 
+def get_best_device():
+    """Detect the best available compute device: CUDA > MPS (Apple Silicon) > CPU."""
+    try:
+        import torch
+    except ImportError:
+        return "cpu"
+
+    if torch.cuda.is_available():
+        return "cuda"
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+def get_torch_dtype(device):
+    """Return the optimal dtype for the given device."""
+    try:
+        import torch
+    except ImportError:
+        return None
+
+    if device == "cuda":
+        return torch.float16
+    # MPS supports float16 but some ops are more stable with float32
+    if device == "mps":
+        return torch.float32
+    return torch.float32
+
+
 def load_config(config_path=None):
     """Load configuration from file, falling back to defaults."""
     config = dict(DEFAULT_CONFIG)

@@ -15,16 +15,18 @@ class BaseTranscriber:
 
 
 class VoxtralTranscriber(BaseTranscriber):
-    def __init__(self, model_id="mistralai/voxtral-transcribe-2.4b", device="cpu"):
-        logger.info(f"Loading model: {model_id} on {device}")
+    def __init__(self, model_id="mistralai/voxtral-transcribe-2.4b", device=None):
         try:
-            import torch
+            import torch  # noqa: F401 – verifies torch is installed
             from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
         except ImportError as e:
             raise ImportError("transformers or torch not installed.") from e
 
-        self.device = device
-        self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+        from config import get_best_device, get_torch_dtype
+
+        self.device = device or get_best_device()
+        self.torch_dtype = get_torch_dtype(self.device)
+        logger.info(f"Loading model: {model_id} on {self.device} (dtype={self.torch_dtype})")
 
         try:
             # Attempt to load the model

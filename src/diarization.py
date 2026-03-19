@@ -19,7 +19,9 @@ class PyannoteDiarizer(BaseDiarizer):
         except ImportError as e:
             raise ImportError("pyannote.audio not installed.") from e
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        from config import get_best_device
+
+        self.device = torch.device(get_best_device())
         try:
             # Note: access token is required for pyannote/speaker-diarization
             self.pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization", use_auth_token=auth_token)
