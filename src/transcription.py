@@ -1,35 +1,37 @@
-import time
-import numpy as np
 import logging
 import random
+import time
+
+import numpy as np
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("VoxtralTranscriber")
 
+
 class BaseTranscriber:
     def transcribe(self, audio_data: np.ndarray) -> str:
         raise NotImplementedError
 
-class VoxtralTranscriber(BaseTranscriber):
-    def __init__(self, model_id="mistralai/voxtral-transcribe-2.4b", device="cpu"):
-        logger.info(f"Loading model: {model_id} on {device}")
-        try:
-            from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
-            import torch
-        except ImportError:
-            raise ImportError("transformers or torch not installed.")
 
-        self.device = device
-        self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+class VoxtralTranscriber(BaseTranscriber):
+    def __init__(self, model_id="mistralai/voxtral-transcribe-2.4b", device=None):
+        try:
+            import torch  # noqa: F401 – verifies torch is installed
+            from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
+        except ImportError as e:
+            raise ImportError("transformers or torch not installed.") from e
+
+        from config import get_best_device, get_torch_dtype
+
+        self.device = device or get_best_device()
+        self.torch_dtype = get_torch_dtype(self.device)
+        logger.info(f"Loading model: {model_id} on {self.device} (dtype={self.torch_dtype})")
 
         try:
             # Attempt to load the model
             self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
-                model_id,
-                torch_dtype=self.torch_dtype,
-                low_cpu_mem_usage=True,
-                use_safetensors=True
+                model_id, torch_dtype=self.torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
             )
             self.model.to(self.device)
 
@@ -68,8 +70,10 @@ class VoxtralTranscriber(BaseTranscriber):
         result = self.pipe(audio_data, generate_kwargs={"language": "english"})
         return result["text"].strip()
 
+
 class MockTranscriber(BaseTranscriber):
     """Simulates transcription for testing without heavy models."""
+
     def __init__(self):
         self.sentences = [
             "Hello, is this working?",
@@ -79,7 +83,7 @@ class MockTranscriber(BaseTranscriber):
             "Can you hear me clearly?",
             "Let's move to the next topic.",
             "This is a simulated transcription.",
-            "Speaker diarization is challenging."
+            "Speaker diarization is challenging.",
         ]
 
     def transcribe(self, audio_data: np.ndarray) -> str:
@@ -87,6 +91,7 @@ class MockTranscriber(BaseTranscriber):
         time.sleep(0.5)
         # Return a random sentence
         return random.choice(self.sentences)
+
 
 def load_transcriber(use_mock=False):
     if use_mock:
